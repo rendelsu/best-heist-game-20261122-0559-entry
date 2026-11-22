@@ -6,10 +6,11 @@
 // /output/dossier.json, the summary the judge reads, with the vendored
 // make.fun library.
 //
-// The game itself is a top-down stealth heist in three rooms: the thief
-// crosses a museum floor past patrolling guards and sweeping cameras, lifts
-// the artifact of each room, and slips out the exit before the alarm meter
-// fills. Coins lure guards, smoke blinds cameras, and every room is one
+// The game itself is a top-down stealth heist in five rooms: the thief
+// crosses a museum floor past patrolling guards, hounds and sentries,
+// sweeping cameras and laser beams, lifts the artifact of each room, and
+// slips out the exit before the alarm meter fills. Coins lure guards, smoke
+// blinds cameras, an EMP burst blacks cameras out, and every room is one
 // screen — the room, the guards, their cones, the loot and the alarm meter
 // are all visible in a single frame.
 //

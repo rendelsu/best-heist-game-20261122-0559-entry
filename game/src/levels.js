@@ -1,10 +1,15 @@
-// The three rooms of the Meridian Museum job. Each level is one screen:
+// The five rooms of the Meridian Museum job. Each level is one screen:
 // the entry door, the loot, the guards and cameras, and the exit — all
 // visible in one frame, with more than one route between them.
 //
 // Obstacles: { x, y, width, height, kind } — kind 'wall' and 'case' block
-// movement and sight; 'rope' blocks movement only (a low velvet rope).
+// movement and sight; 'rope' blocks movement only (a low velvet rope);
+// 'planter' is a hedge: it blocks movement and sight like a wall.
 // Guards patrol their waypoints in a loop. Cameras sweep around a base angle.
+// A 'sentry' guard never walks: it turns in place, sweeping its cone.
+// A 'hound' runs faster, sees less far, and hears a coin from further away.
+// Lasers sweep across a room; the fuse box cuts them for good. The artifact
+// of the last room sits in a safe that takes three seconds to crack.
 // Loot: { x, y, kind: 'gem' | 'painting' | 'artifact', name }.
 // The artifact is the job's target: the exit only opens once it is taken.
 import { PLAY } from './config.js';
@@ -21,6 +26,9 @@ function displayCase(x, y, width, height) {
 function rope(x, y, width, height) {
   return { x, y, width, height, kind: 'rope', blocksSight: false };
 }
+function planter(x, y, width, height) {
+  return { x, y, width, height, kind: 'planter', blocksSight: true };
+}
 
 export const LEVELS = [
   {
@@ -29,6 +37,11 @@ export const LEVELS = [
     timeLimit: 150,
     start: { x: 70, y: BOTTOM - 70 },
     exit: { x: 1190, y: TOP + 30, width: 64, height: 96 },
+    carpet: { x: 440, y: TOP + 240, width: 400, height: 256, color: '#5a1f28' },
+    paintings: [
+      { x: 200, y: TOP + 20, width: 90, height: 34, color: '#7ee7ff' },
+      { x: 900, y: TOP + 20, width: 90, height: 34, color: '#ff5d8f' },
+    ],
     obstacles: [
       // Outer walls (the room shell, with the entry gap at the south-west
       // and the exit gap at the north-east handled by the exit rect itself).
@@ -86,6 +99,11 @@ export const LEVELS = [
     timeLimit: 180,
     start: { x: 70, y: TOP + 70 },
     exit: { x: 1190, y: BOTTOM - 130, width: 64, height: 96 },
+    carpet: { x: 400, y: TOP + 300, width: 480, height: 136, color: '#1f3d2e' },
+    paintings: [
+      { x: 500, y: TOP + 20, width: 90, height: 34, color: '#ffd166' },
+      { x: 1100, y: TOP + 20, width: 90, height: 34, color: '#7ee7ff' },
+    ],
     obstacles: [
       wall(0, TOP, 1280, 14),
       wall(0, BOTTOM - 14, 1280, 14),
@@ -150,6 +168,11 @@ export const LEVELS = [
     timeLimit: 210,
     start: { x: 70, y: BOTTOM - 70 },
     exit: { x: 1190, y: TOP + 30, width: 64, height: 96 },
+    carpet: { x: 440, y: TOP + 240, width: 400, height: 256, color: '#1f2d4d' },
+    paintings: [
+      { x: 300, y: TOP + 20, width: 90, height: 34, color: '#ff5d8f' },
+      { x: 850, y: TOP + 20, width: 90, height: 34, color: '#ffd166' },
+    ],
     obstacles: [
       wall(0, TOP, 1280, 14),
       wall(0, BOTTOM - 14, 1280, 14),
@@ -209,6 +232,151 @@ export const LEVELS = [
       { x: 220, y: TOP + 120, kind: 'painting', name: 'Midnight Fox' },
       { x: 1060, y: TOP + 600, kind: 'painting', name: 'The Getaway' },
       { x: 640, y: TOP + 345, kind: 'artifact', name: 'Star Sapphire' },
+    ],
+  },
+  {
+    name: 'IV — The Glass Atrium',
+    intro: 'The Jade Falcon waits in the rooftop garden. The hound hears everything.',
+    timeLimit: 210,
+    start: { x: 70, y: BOTTOM - 70 },
+    exit: { x: 1190, y: TOP + 30, width: 64, height: 96 },
+    carpet: { x: 440, y: TOP + 240, width: 400, height: 256, color: '#1f4d2e' },
+    paintings: [
+      { x: 200, y: TOP + 20, width: 90, height: 34, color: '#7ee7ff' },
+      { x: 900, y: TOP + 20, width: 90, height: 34, color: '#3ddc84' },
+    ],
+    obstacles: [
+      wall(0, TOP, 1280, 14),
+      wall(0, BOTTOM - 14, 1280, 14),
+      wall(0, TOP, 14, PLAY.height),
+      wall(1266, TOP, 14, PLAY.height),
+      // Hedge rows: four planters make three lanes across the garden, with
+      // a lone hedge in the middle to break the sight lines.
+      planter(300, TOP + 80, 200, 40),
+      planter(300, TOP + 560, 200, 40),
+      planter(780, TOP + 80, 200, 40),
+      planter(780, TOP + 560, 200, 40),
+      planter(560, TOP + 280, 160, 40),
+      displayCase(150, TOP + 300, 140, 70),
+      displayCase(1050, TOP + 300, 140, 70),
+      rope(560, TOP + 120, 160, 10),
+      rope(560, TOP + 600, 160, 10),
+    ],
+    guards: [
+      {
+        waypoints: [
+          { x: 540, y: TOP + 180 },
+          { x: 540, y: TOP + 560 },
+        ],
+        pauseSeconds: 1.0,
+      },
+      {
+        kind: 'hound',
+        waypoints: [
+          { x: 1000, y: TOP + 120 },
+          { x: 1000, y: TOP + 600 },
+        ],
+        pauseSeconds: 0.5,
+      },
+      {
+        kind: 'sentry',
+        waypoints: [{ x: 640, y: TOP + 500 }],
+        baseAngle: -Math.PI / 2,
+        sweep: 1.1,
+        speed: 0.5,
+        pauseSeconds: 0,
+      },
+    ],
+    cameras: [
+      { x: 326, y: TOP + 60, baseAngle: Math.PI / 2, sweep: 0.8, speed: 0.6 },
+      { x: 954, y: TOP + 640, baseAngle: -Math.PI / 2, sweep: 0.9, speed: 0.5 },
+    ],
+    loot: [
+      { x: 225, y: TOP + 456, kind: 'gem', name: 'Peridot' },
+      { x: 555, y: TOP + 456, kind: 'gem', name: 'Moonstone' },
+      { x: 885, y: TOP + 156, kind: 'gem', name: 'Citrine' },
+      { x: 1175, y: TOP + 236, kind: 'gem', name: 'Beryl' },
+      { x: 225, y: TOP + 120, kind: 'painting', name: 'The Garden Fox' },
+      { x: 885, y: TOP + 636, kind: 'painting', name: 'Dusk in the Atrium' },
+      { x: 640, y: TOP + 345, kind: 'artifact', name: 'Jade Falcon' },
+    ],
+  },
+  {
+    name: 'V — The Director\'s Vault',
+    intro: 'The Obsidian Crown. Cut the lasers at the fuse box — then crack the safe.',
+    timeLimit: 240,
+    start: { x: 70, y: BOTTOM - 70 },
+    exit: { x: 1190, y: TOP + 30, width: 64, height: 96 },
+    carpet: { x: 440, y: TOP + 240, width: 400, height: 256, color: '#3d1f4d' },
+    paintings: [
+      { x: 300, y: TOP + 20, width: 90, height: 34, color: '#ff5d8f' },
+      { x: 850, y: TOP + 20, width: 90, height: 34, color: '#ffd166' },
+    ],
+    // Three seconds standing at the artifact to crack its safe.
+    artifactChannelSeconds: 3,
+    fuseBox: { x: 60, y: TOP + 360 },
+    lasers: [
+      { x: 340, y: TOP + 360, baseAngle: 0, sweep: 0.7, speed: 0.5, range: 300 },
+      { x: 940, y: TOP + 360, baseAngle: Math.PI, sweep: 0.7, speed: 0.45, range: 300 },
+    ],
+    obstacles: [
+      wall(0, TOP, 1280, 14),
+      wall(0, BOTTOM - 14, 1280, 14),
+      wall(0, TOP, 14, PLAY.height),
+      wall(1266, TOP, 14, PLAY.height),
+      // The vault ring again, bigger stakes: the same gaps, new watches.
+      displayCase(520, TOP + 150, 240, 50),
+      displayCase(520, TOP + 490, 240, 50),
+      displayCase(520, TOP + 200, 50, 200),
+      displayCase(710, TOP + 286, 50, 204),
+      // Side halls with cover.
+      wall(330, TOP + 90, 26, 240),
+      wall(330, TOP + 430, 26, 210),
+      wall(950, TOP + 90, 26, 240),
+      wall(950, TOP + 430, 26, 210),
+      displayCase(150, TOP + 300, 140, 70),
+      displayCase(990, TOP + 300, 140, 70),
+      rope(420, TOP + 120, 160, 10),
+      rope(700, TOP + 626, 160, 10),
+    ],
+    guards: [
+      {
+        waypoints: [
+          { x: 470, y: TOP + 236 },
+          { x: 470, y: TOP + 536 },
+        ],
+        pauseSeconds: 0.7,
+      },
+      {
+        kind: 'hound',
+        waypoints: [
+          { x: 860, y: TOP + 140 },
+          { x: 860, y: TOP + 560 },
+        ],
+        pauseSeconds: 0.6,
+      },
+      {
+        kind: 'sentry',
+        waypoints: [{ x: 1180, y: TOP + 360 }],
+        baseAngle: Math.PI,
+        sweep: 1.0,
+        speed: 0.5,
+        pauseSeconds: 0,
+      },
+    ],
+    cameras: [
+      { x: 570, y: TOP + 200, baseAngle: Math.PI / 2, sweep: 1.0, speed: 0.7 },
+      { x: 760, y: TOP + 200, baseAngle: Math.PI / 2, sweep: 1.0, speed: 0.7 },
+      { x: 665, y: TOP + 640, baseAngle: -Math.PI / 2, sweep: 1.0, speed: 0.6 },
+    ],
+    loot: [
+      { x: 220, y: TOP + 416, kind: 'gem', name: 'Garnet' },
+      { x: 1060, y: TOP + 416, kind: 'gem', name: 'Aquamarine' },
+      { x: 420, y: TOP + 600, kind: 'gem', name: 'Pearl' },
+      { x: 860, y: TOP + 90, kind: 'gem', name: 'Tourmaline' },
+      { x: 220, y: TOP + 120, kind: 'painting', name: 'The Vault Fox' },
+      { x: 1060, y: TOP + 600, kind: 'painting', name: 'The Last Crown' },
+      { x: 640, y: TOP + 345, kind: 'artifact', name: 'Obsidian Crown' },
     ],
   },
 ];

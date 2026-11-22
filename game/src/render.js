@@ -1,9 +1,10 @@
 // Every pixel of The Velvet Fox is drawn here on one canvas: the marble
 // floor, the walls and cases, the guards and their cones, the cameras, the
-// loot, the thief, the HUD with its alarm meter, and the title and end
-// screens. Nothing is loaded from outside the game folder.
+// lasers, the loot, the thief, the HUD with its alarm meter, and the title
+// and end screens. Nothing is loaded from outside the game folder.
 import { CAMERA, COLORS, GUARD, HUD_HEIGHT, LOOT_POINTS, PLAYER, VIEW } from './config.js';
 import { LEVELS } from './levels.js';
+import { laserBeamSegment } from './hazards.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -22,7 +23,7 @@ function drawCone(ctx, x, y, angle, range, halfAngle, fill, edge) {
   ctx.stroke();
 }
 
-function drawFloor(ctx, time) {
+function drawFloor(ctx, world, time) {
   const tile = 64;
   for (let ty = HUD_HEIGHT; ty < VIEW.height; ty += tile) {
     for (let tx = 0; tx < VIEW.width; tx += tile) {
@@ -45,6 +46,30 @@ function drawFloor(ctx, time) {
     ctx.moveTo(0, ty);
     ctx.lineTo(VIEW.width, ty);
     ctx.stroke();
+  }
+  // A velvet runner down the middle of the room, a different shade per room,
+  // so no two rooms read the same at a glance.
+  const carpet = world.level.carpet;
+  if (carpet) {
+    ctx.fillStyle = carpet.color;
+    ctx.fillRect(carpet.x, carpet.y, carpet.width, carpet.height);
+    ctx.strokeStyle = 'rgba(201, 162, 39, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(carpet.x + 4, carpet.y + 4, carpet.width - 8, carpet.height - 8);
+    ctx.strokeStyle = 'rgba(201, 162, 39, 0.25)';
+    ctx.beginPath();
+    ctx.arc(carpet.x + carpet.width / 2, carpet.y + carpet.height / 2, 40, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Framed paintings on the north wall, one colour each.
+  for (const painting of world.level.paintings ?? []) {
+    ctx.fillStyle = '#3a2c14';
+    ctx.fillRect(painting.x, painting.y, painting.width, painting.height);
+    ctx.fillStyle = painting.color ?? COLORS.painting;
+    ctx.fillRect(painting.x + 5, painting.y + 5, painting.width - 10, painting.height - 10);
+    ctx.strokeStyle = COLORS.brass;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(painting.x, painting.y, painting.width, painting.height);
   }
   void time;
 }
@@ -69,6 +94,21 @@ function drawObstacles(ctx, obstacles) {
       ctx.moveTo(obstacle.x + 6, obstacle.y + obstacle.height - 6);
       ctx.lineTo(obstacle.x + obstacle.width - 6, obstacle.y + 6);
       ctx.stroke();
+    } else if (obstacle.kind === 'planter') {
+      // A hedge: dark green, lighter on top, pale buds along the middle.
+      ctx.fillStyle = COLORS.planter;
+      ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      ctx.fillStyle = COLORS.planterTop;
+      ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, 10);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+      for (let px = obstacle.x + 12; px < obstacle.x + obstacle.width - 8; px += 26) {
+        ctx.beginPath();
+        ctx.arc(px, obstacle.y + obstacle.height / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#0b0e13';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(obstacle.x + 0.5, obstacle.y + 0.5, obstacle.width, obstacle.height);
     } else {
       // Velvet rope: two brass posts and a sagging red cord.
       ctx.strokeStyle = COLORS.rope;
@@ -152,6 +192,18 @@ function drawLoot(ctx, world, time) {
       ctx.lineWidth = 2;
       ctx.strokeRect(-13, -13, 26, 26);
       ctx.restore();
+      // A safe to crack: the ring shows the crack's progress.
+      if (world.level.artifactChannelSeconds && world.artifactProgress > 0) {
+        ctx.strokeStyle = COLORS.emp;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(item.x, item.y - 8, 24, -Math.PI / 2, -Math.PI / 2 + world.artifactProgress * Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(242, 234, 216, 0.9)';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('CRACKING THE SAFE — STAND STILL', item.x, y + 52);
+      }
     }
     // Sparkle halo so loot reads at a glance, even shrunk.
     ctx.strokeStyle = `rgba(255, 255, 255, ${0.25 + sparkle * 0.5})`;
@@ -197,17 +249,81 @@ function drawCoin(ctx, world) {
   ctx.stroke();
 }
 
+function drawLasers(ctx, world) {
+  for (const laser of world.lasers) {
+    const segment = laserBeamSegment(laser, world.level.obstacles);
+    // The emitter box, aimed along the beam.
+    ctx.save();
+    ctx.translate(laser.x, laser.y);
+    ctx.rotate(laser.angle);
+    ctx.fillStyle = '#20242e';
+    ctx.fillRect(-8, -7, 16, 14);
+    ctx.fillStyle = world.fuseDisabled ? '#5a6b7d' : COLORS.laser;
+    ctx.beginPath();
+    ctx.arc(8, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    if (world.fuseDisabled) continue;
+    ctx.strokeStyle = COLORS.laserGlow;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(segment.x1, segment.y1);
+    ctx.lineTo(segment.x2, segment.y2);
+    ctx.stroke();
+    ctx.strokeStyle = COLORS.laser;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(segment.x1, segment.y1);
+    ctx.lineTo(segment.x2, segment.y2);
+    ctx.stroke();
+  }
+}
+
+function drawFuseBox(ctx, world) {
+  const box = world.level.fuseBox;
+  if (!box) return;
+  const disabled = world.fuseDisabled;
+  ctx.fillStyle = disabled ? '#2f6b3f' : COLORS.fuse;
+  ctx.fillRect(box.x - 12, box.y - 15, 24, 30);
+  ctx.strokeStyle = COLORS.brassDim;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(box.x - 12, box.y - 15, 24, 30);
+  ctx.fillStyle = '#0b0e13';
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(disabled ? 'OFF' : 'FUSE', box.x, box.y + 3);
+  if (!disabled && world.fuseProgress > 0) {
+    ctx.strokeStyle = COLORS.emp;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(box.x, box.y, 22, -Math.PI / 2, -Math.PI / 2 + world.fuseProgress * Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(242, 234, 216, 0.9)';
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.fillText(disabled ? 'LASERS OFF' : 'CUT THE LASERS', box.x, box.y + 30);
+}
+
 function drawGuard(ctx, world, guard, time) {
-  const seesPlayer = world.watcherSees(guard, GUARD.coneRange, GUARD.coneHalfAngle);
+  const seesPlayer = world.watcherSees(guard, guard.range, guard.halfAngle);
   const fill = seesPlayer ? 'rgba(255, 82, 82, 0.30)' : COLORS.guardCone;
   const edge = seesPlayer ? 'rgba(255, 82, 82, 0.7)' : COLORS.guardConeEdge;
-  drawCone(ctx, guard.x, guard.y, guard.angle, GUARD.coneRange, GUARD.coneHalfAngle, fill, edge);
-  // Body: navy uniform, brass cap, facing nose.
-  ctx.fillStyle = COLORS.guard;
+  drawCone(ctx, guard.x, guard.y, guard.angle, guard.range, guard.halfAngle, fill, edge);
+  // Body: navy for a patrol, brown for a hound, purple for a sentry —
+  // the watch reads at a glance. A sentry stands on a brass base.
+  const body = guard.kind === 'hound' ? COLORS.hound : guard.kind === 'sentry' ? COLORS.sentry : COLORS.guard;
+  const dark = guard.kind === 'hound' ? COLORS.houndDark : guard.kind === 'sentry' ? COLORS.sentryDark : COLORS.guardDark;
+  if (guard.kind === 'sentry') {
+    ctx.fillStyle = COLORS.brassDim;
+    ctx.beginPath();
+    ctx.arc(guard.x, guard.y, GUARD.radius + 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = body;
   ctx.beginPath();
   ctx.arc(guard.x, guard.y, GUARD.radius, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = COLORS.guardDark;
+  ctx.strokeStyle = dark;
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.fillStyle = '#1d2b3d';
@@ -236,16 +352,17 @@ function drawGuard(ctx, world, guard, time) {
 }
 
 function drawCamera(ctx, world, camera) {
-  const seesPlayer = world.watcherSees(camera, CAMERA.coneRange, CAMERA.coneHalfAngle);
-  const fill = seesPlayer ? 'rgba(255, 82, 82, 0.30)' : COLORS.cameraCone;
-  const edge = seesPlayer ? 'rgba(255, 82, 82, 0.7)' : COLORS.cameraConeEdge;
+  const blind = camera.blindLeft > 0;
+  const seesPlayer = !blind && world.watcherSees(camera, CAMERA.coneRange, CAMERA.coneHalfAngle);
+  const fill = blind ? 'rgba(89, 183, 255, 0.10)' : seesPlayer ? 'rgba(255, 82, 82, 0.30)' : COLORS.cameraCone;
+  const edge = blind ? 'rgba(89, 183, 255, 0.5)' : seesPlayer ? 'rgba(255, 82, 82, 0.7)' : COLORS.cameraConeEdge;
   drawCone(ctx, camera.x, camera.y, camera.angle, CAMERA.coneRange, CAMERA.coneHalfAngle, fill, edge);
   ctx.save();
   ctx.translate(camera.x, camera.y);
   ctx.rotate(camera.angle);
   ctx.fillStyle = '#20242e';
   ctx.fillRect(-8, -6, 18, 12);
-  ctx.fillStyle = seesPlayer ? '#ff5252' : '#ff8a80';
+  ctx.fillStyle = blind ? COLORS.emp : seesPlayer ? '#ff5252' : '#ff8a80';
   ctx.beginPath();
   ctx.arc(11, 0, 4, 0, Math.PI * 2);
   ctx.fill();
@@ -400,8 +517,9 @@ function drawHud(ctx, world) {
   ctx.fillStyle = COLORS.ink;
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText(`◉ COIN ×${world.coins}  (click / C)`, 1264, 20);
-  ctx.fillText(`☁ SMOKE ×${world.smokes}  (X)`, 1264, 44);
+  ctx.fillText(`◉ COIN ×${world.coins}  (click / C)`, 1264, 18);
+  ctx.fillText(`⚡ EMP ×${world.emps}  (E)`, 1264, 32);
+  ctx.fillText(`☁ SMOKE ×${world.smokes}  (X)`, 1264, 46);
   ctx.textAlign = 'left';
 }
 
@@ -433,22 +551,23 @@ function drawTitle(ctx, world, best) {
   ctx.fillText('Heist at the Meridian Museum', VIEW.width / 2, 296);
   ctx.fillStyle = COLORS.inkDim;
   ctx.font = '16px system-ui, sans-serif';
-  ctx.fillText('Three rooms. Three treasures. One fox, and a museum full of eyes.', VIEW.width / 2, 336);
+  ctx.fillText('Five rooms. Five treasures. One fox, and a museum full of eyes.', VIEW.width / 2, 336);
   const lines = [
     'WASD / arrows — move        SHIFT — sneak (slower, harder to spot)',
     'CLICK or C — toss a coin to lure a guard        X — smoke bomb (blinds cameras)',
-    'Take the artifact, then reach the green EXIT before the alarm hits 100.',
+    'E — EMP burst, blinds every camera for a few seconds',
+    'Cut the lasers at the fuse box, crack the safe, take the artifact, then reach the green EXIT.',
     'Guards and cameras raise the alarm while they see you. Break line of sight to cool down.',
   ];
   ctx.font = '15px system-ui, sans-serif';
   lines.forEach((line, index) => ctx.fillText(line, VIEW.width / 2, 396 + index * 28));
   ctx.fillStyle = COLORS.ink;
   ctx.font = 'bold 20px system-ui, sans-serif';
-  ctx.fillText('Press ENTER or click to begin the job', VIEW.width / 2, 540);
+  ctx.fillText('Press ENTER or click to begin the job', VIEW.width / 2, 556);
   if (best > 0) {
     ctx.fillStyle = COLORS.brass;
     ctx.font = '15px system-ui, sans-serif';
-    ctx.fillText(`Best haul so far: ${best}`, VIEW.width / 2, 574);
+    ctx.fillText(`Best haul so far: ${best}`, VIEW.width / 2, 590);
   }
   ctx.textAlign = 'left';
 }
@@ -472,12 +591,14 @@ function drawEndScreen(ctx, title, lines, hint) {
 export function render(ctx, world, ui) {
   const time = ui.time;
   ctx.clearRect(0, 0, VIEW.width, VIEW.height);
-  drawFloor(ctx, time);
+  drawFloor(ctx, world, time);
   drawExit(ctx, world);
   drawObstacles(ctx, world.level.obstacles);
   drawLoot(ctx, world, time);
   drawCoin(ctx, world);
   drawSmoke(ctx, world);
+  drawLasers(ctx, world);
+  drawFuseBox(ctx, world);
   for (const camera of world.cameras) drawCamera(ctx, world, camera);
   for (const guard of world.guards) drawGuard(ctx, world, guard, time);
   drawThief(ctx, world, time);
@@ -496,11 +617,11 @@ export function render(ctx, world, ui) {
   } else if (world.phase === 'win') {
     drawEndScreen(
       ctx,
-      'THE STAR SAPPHIRE IS YOURS',
+      'EVERY TREASURE IS YOURS',
       [
         `Final score: ${world.score}`,
         `Loot taken: ${world.totalLootTaken} piece${world.totalLootTaken === 1 ? '' : 's'} worth ${world.totalLootValue} points`,
-        `Times caught: ${world.timesCaught}   •   Coins tossed: ${world.coinsUsed}   •   Smoke used: ${world.smokesUsed}`,
+        `Times caught: ${world.timesCaught}   •   Coins tossed: ${world.coinsUsed}   •   Smoke used: ${world.smokesUsed}   •   EMP used: ${world.empsUsed}`,
       ],
       'Press ENTER to run the job again.',
     );

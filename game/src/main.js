@@ -3,7 +3,7 @@
 import { VIEW } from './config.js';
 import { Input } from './input.js';
 import { Sound } from './audio.js';
-import { World, EVENT_CAUGHT, EVENT_COIN, EVENT_LEVEL_DONE, EVENT_OVER, EVENT_PICKUP, EVENT_SMOKE, EVENT_WIN } from './world.js';
+import { World, EVENT_CAUGHT, EVENT_COIN, EVENT_EMP, EVENT_FUSE, EVENT_LEVEL_DONE, EVENT_OVER, EVENT_PICKUP, EVENT_SMOKE, EVENT_WIN } from './world.js';
 import { render, SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 import { stageShot } from './shots.js';
 
@@ -45,6 +45,7 @@ function startGame() {
   world.totalLootValue = 0;
   world.coinsUsed = 0;
   world.smokesUsed = 0;
+  world.empsUsed = 0;
   world.timesCaught = 0;
   world.resetLevel(0);
   lastLevelIndex = 0;
@@ -68,6 +69,11 @@ function handleEvents(events) {
       sound.coin();
     } else if (event === EVENT_SMOKE) {
       sound.smoke();
+    } else if (event === EVENT_EMP) {
+      sound.emp();
+    } else if (event === EVENT_FUSE) {
+      sound.fuse();
+      announce('Lasers cut. The vault is open ground now.');
     } else if (event === EVENT_CAUGHT) {
       sound.caught();
       sound.stopAlarm();
@@ -86,7 +92,7 @@ function handleEvents(events) {
         }
       }
       screen = SCREEN_WIN;
-      announce(`The Star Sapphire is yours. Final score ${world.score}.`);
+      announce(`All five treasures are yours. Final score ${world.score}.`);
     } else if (event === EVENT_OVER) {
       sound.caught();
       screen = SCREEN_OVER;

@@ -76,6 +76,18 @@ export class Sound {
     this.tone(165, 0.4, 'sawtooth', 0.14, 0.18);
   }
 
+  /** The fuse box clicks and the lasers die. */
+  fuse() {
+    this.tone(1046, 0.1, 'square', 0.08);
+    this.tone(1567, 0.2, 'square', 0.06, 0.08);
+  }
+
+  /** An EMP burst: a short descending zap. */
+  emp() {
+    this.tone(1200, 0.3, 'sawtooth', 0.1);
+    this.tone(300, 0.4, 'sawtooth', 0.08, 0.05);
+  }
+
   win() {
     [523, 659, 784, 1046].forEach((frequency, index) => this.tone(frequency, 0.3, 'triangle', 0.12, index * 0.12));
   }

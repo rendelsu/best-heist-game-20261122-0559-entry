@@ -1,6 +1,6 @@
 // A cautious autopilot: it steers the thief toward the nearest loot (the
-// artifact first when the exit is the goal), keeps out of vision cones, and
-// sneaks when a cone is near. It plays the real rules through World.step,
+// artifact first when the exit is the goal), keeps out of vision cones,
+// and sneaks when a cone is near. It plays the real rules through World.step,
 // so a staged screenshot — and the Node self-test — shows a game that is
 // genuinely winnable, not a posed frame.
 //
@@ -12,8 +12,13 @@
 // Waiting is a candidate too, so the pilot holds still while a cone sweeps
 // past — but after waiting ~3 seconds it dashes through, sneaking, rather
 // than waiting out the level timer.
-import { CAMERA, GUARD, PLAYER, PLAY } from './config.js';
+//
+// Round 2: the pilot reads lasers like cones, cuts the lasers at the fuse
+// box before anything else, and stands still to crack a safe — but only
+// while nothing is watching it, or the crack is not worth the alarm.
+import { CAMERA, FUSE, LASER, PLAYER, PLAY, SAFE } from './config.js';
 import { circleHitsRect, distance, insideCone, insideSmoke } from './geometry.js';
+import { beamHitsPoint, laserBeamSegment, pointToSegmentDistance } from './hazards.js';
 
 const DIRECTIONS = [
   [0, -1], [1, -1], [1, 0], [1, 1],
@@ -33,17 +38,29 @@ function coneDanger(world, x, y) {
   let real = 0;
   let margin = 0;
   for (const guard of world.guards) {
-    if (insideCone(guard.x, guard.y, guard.angle, GUARD.coneRange, GUARD.coneHalfAngle, x, y, world.level.obstacles)) real += 1;
-    else if (insideCone(guard.x, guard.y, guard.angle, GUARD.coneRange + 20, GUARD.coneHalfAngle + 0.08, x, y, world.level.obstacles)) margin += 1;
+    if (insideCone(guard.x, guard.y, guard.angle, guard.range, guard.halfAngle, x, y, world.level.obstacles)) real += 1;
+    else if (insideCone(guard.x, guard.y, guard.angle, guard.range + 20, guard.halfAngle + 0.08, x, y, world.level.obstacles)) margin += 1;
   }
   for (const camera of world.cameras) {
+    if (camera.blindLeft > 0) continue;
     if (insideCone(camera.x, camera.y, camera.angle, CAMERA.coneRange, CAMERA.coneHalfAngle, x, y, world.level.obstacles)) real += 1;
     else if (insideCone(camera.x, camera.y, camera.angle, CAMERA.coneRange + 20, CAMERA.coneHalfAngle + 0.08, x, y, world.level.obstacles)) margin += 1;
+  }
+  if (!world.fuseDisabled) {
+    for (const laser of world.lasers) {
+      const segment = laserBeamSegment(laser, world.level.obstacles);
+      if (beamHitsPoint(segment, laser.x, laser.y, x, y, PLAYER.radius, LASER.beamHalfWidth, world.level.obstacles)) real += 2;
+      else if (pointToSegmentDistance(x, y, segment) <= PLAYER.radius + 48) margin += 1;
+    }
   }
   return { real, margin };
 }
 
 function nextTarget(world) {
+  // Lasers first: the fuse box is the job before the job.
+  if (world.level.fuseBox && !world.fuseDisabled) {
+    return { x: world.level.fuseBox.x, y: world.level.fuseBox.y, fuse: true };
+  }
   if (!world.artifactTaken()) {
     const artifact = world.loot.find((item) => item.kind === 'artifact' && !item.taken);
     if (artifact) return artifact;
@@ -142,7 +159,7 @@ export function planRoute(world, target) {
 }
 
 /**
- * One input frame for the world: { moveX, moveY, sneak, coinTarget, useSmoke }.
+ * One input frame for the world: { moveX, moveY, sneak, coinTarget, useSmoke, useEmp }.
  * `state` ({ waits }) is the pilot's memory across frames; the caller keeps
  * one per playthrough. The pilot never throws coins or smoke — it wins by
  * reading the cones.
@@ -150,7 +167,20 @@ export function planRoute(world, target) {
 export function autopilotInput(world, state = { waits: 0 }) {
   const player = world.player;
   const target = nextTarget(world);
-  if (!target) return { moveX: 0, moveY: 0, sneak: false, coinTarget: null, useSmoke: false };
+  if (!target) return { moveX: 0, moveY: 0, sneak: false, coinTarget: null, useSmoke: false, useEmp: false };
+  // Cracking a safe or cutting the lasers means standing still — but only
+  // while nothing is watching. If a cone is on the spot, walk out and come
+  // back; the crack decays slowly, so a scare costs time, not the job.
+  const here = coneDanger(world, player.x, player.y);
+  const channelingFuse = Boolean(target.fuse) && distance(player.x, player.y, target.x, target.y) <= FUSE.radius;
+  const channelingSafe =
+    target.kind === 'artifact' &&
+    world.level.artifactChannelSeconds &&
+    distance(player.x, player.y, target.x, target.y) <= SAFE.channelRadius;
+  if ((channelingFuse || channelingSafe) && here.real === 0) {
+    state.waits = 0;
+    return { moveX: 0, moveY: 0, sneak: false, coinTarget: null, useSmoke: false, useEmp: false };
+  }
   // The local goal is the next waypoint of the A* route (or the target
   // itself when the route is a straight line or cannot be planned).
   let goal = target;
@@ -201,16 +231,17 @@ export function autopilotInput(world, state = { waits: 0 }) {
   else state.waits = 0;
   const endDanger = coneDanger(world, player.x + best[0] * 26, player.y + best[1] * 26);
   const sneak = endDanger.real > 0 || endDanger.margin > 0 || coneDanger(world, player.x, player.y).real > 0;
-  return { moveX: best[0], moveY: best[1], sneak, coinTarget: null, useSmoke: false };
+  return { moveX: best[0], moveY: best[1], sneak, coinTarget: null, useSmoke: false, useEmp: false };
 }
 
 /** Is the thief standing where a watcher can see them right now? */
 export function thiefIsSeen(world) {
   const player = world.player;
   for (const guard of world.guards) {
-    if (insideCone(guard.x, guard.y, guard.angle, GUARD.coneRange, GUARD.coneHalfAngle, player.x, player.y, world.level.obstacles)) return true;
+    if (insideCone(guard.x, guard.y, guard.angle, guard.range, guard.halfAngle, player.x, player.y, world.level.obstacles)) return true;
   }
   for (const camera of world.cameras) {
+    if (camera.blindLeft > 0) continue;
     if (insideCone(camera.x, camera.y, camera.angle, CAMERA.coneRange, CAMERA.coneHalfAngle, player.x, player.y, world.level.obstacles)) return true;
   }
   return false;

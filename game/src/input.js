@@ -1,6 +1,7 @@
 // Keyboard and mouse input. WASD or arrows move, Shift sneaks, C tosses a
-// coin where the thief faces, X drops smoke, click tosses a coin at the
-// cursor, P pauses, M mutes, R restarts the level, Enter starts.
+// coin where the thief faces, X drops smoke, E fires an EMP burst, click
+// tosses a coin at the cursor, P pauses, M mutes, R restarts the level,
+// Enter starts.
 import { PLAY } from './config.js';
 
 const KEY_MOVES = {
@@ -22,6 +23,7 @@ export class Input {
     this.sneak = false;
     this.coinTarget = null;
     this.useSmoke = false;
+    this.useEmp = false;
     this.pressed = new Set();
     this.mouse = { x: 0, y: 0 };
     this.canvas = canvas;
@@ -68,6 +70,7 @@ export class Input {
     this.sneak = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
     if (this.keys.has('KeyC')) this.coinTarget = this.facingPoint();
     if (this.keys.has('KeyX')) this.useSmoke = true;
+    if (this.keys.has('KeyE')) this.useEmp = true;
   }
 
   facingPoint() {
@@ -78,14 +81,16 @@ export class Input {
   frame(playerAngle) {
     const coinTarget = this.coinTarget;
     const useSmoke = this.useSmoke;
+    const useEmp = this.useEmp;
     this.coinTarget = null;
     this.useSmoke = false;
+    this.useEmp = false;
     // C tosses toward the mouse; if the mouse never moved, toss ahead.
     let target = coinTarget;
     if (target && this.keys.has('KeyC')) {
       target = { x: this.mouse.x, y: this.mouse.y };
     }
-    return { moveX: this.moveX, moveY: this.moveY, sneak: this.sneak, coinTarget: target, useSmoke };
+    return { moveX: this.moveX, moveY: this.moveY, sneak: this.sneak, coinTarget: target, useSmoke, useEmp };
   }
 
   /** True once when the key was pressed since the last check. */

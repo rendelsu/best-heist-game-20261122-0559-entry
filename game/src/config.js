@@ -27,6 +27,15 @@ export const GUARD = {
   coneHalfAngle: 0.62,
 };
 
+// One job, three watches. A patrol walks its route; a sentry never moves,
+// it turns in place and sweeps its cone; a hound runs faster, sees less
+// far, and hears a tossed coin from much further away.
+export const GUARD_KINDS = {
+  patrol: { patrolSpeed: 58, investigateSpeed: 95, coneRange: 195, coneHalfAngle: 0.62, hearRadius: 190 },
+  sentry: { patrolSpeed: 0, investigateSpeed: 0, coneRange: 220, coneHalfAngle: 0.7, hearRadius: 0 },
+  hound: { patrolSpeed: 95, investigateSpeed: 135, coneRange: 150, coneHalfAngle: 0.8, hearRadius: 260 },
+};
+
 export const CAMERA = {
   coneRange: 235,
   coneHalfAngle: 0.46,
@@ -34,14 +43,35 @@ export const CAMERA = {
   smokeBlindSeconds: 5,
 };
 
+// A laser beam: crossing it trips the alarm fast, and sneaking does not help.
+export const LASER = {
+  alarmRate: 60,
+  beamHalfWidth: 4,
+};
+
+// The fuse box: stand beside it this long to cut a room's lasers for good.
+export const FUSE = {
+  channelSeconds: 1.5,
+  radius: 34,
+};
+
+// Cracking a safe: the artifact only lifts after standing beside it this long.
+export const SAFE = {
+  channelRadius: 32,
+};
+
 export const TOOLS = {
   coinStart: 3,
   smokeStart: 2,
+  empStart: 1,
   coinCost: 25,
   smokeCost: 50,
+  empCost: 75,
   coinThrowRange: 280,
   coinHearRadius: 190,
   smokeRadius: 135,
+  // Seconds an EMP burst blinds every camera in the room.
+  empBlindSeconds: 8,
 };
 
 export const LOOT_POINTS = { gem: 100, painting: 250, artifact: 500 };
@@ -69,6 +99,16 @@ export const COLORS = {
   thiefDark: '#b6541a',
   guard: '#3d5a80',
   guardDark: '#2b4361',
+  hound: '#7a5230',
+  houndDark: '#5d3d22',
+  sentry: '#5a3d80',
+  sentryDark: '#422a61',
+  laser: '#ff2d55',
+  laserGlow: 'rgba(255, 45, 85, 0.25)',
+  emp: '#59b7ff',
+  fuse: '#c9a227',
+  planter: '#1e4d2b',
+  planterTop: '#2f6b3f',
   gem: '#7ee7ff',
   painting: '#ffd166',
   artifact: '#ff5d8f',
